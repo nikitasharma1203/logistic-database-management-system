@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-import matplotlib.pyplot as plt
+import plotly.express as px
 import helper as an
 
 # -----------------------------
@@ -35,56 +35,60 @@ st.subheader("Orders by Origin Port")
 origin_df = an.orders_by_origin_port(df)
 st.dataframe(origin_df)
 
-fig, ax = plt.subplots()
-ax.bar(origin_df["origin_port"], origin_df["total_orders"], color="skyblue")
-ax.set_title("Orders by Origin Port")
-ax.set_xlabel("Origin Port")
-ax.set_ylabel("Total Orders")
-plt.xticks(rotation=45)
-st.pyplot(fig)
+fig_origin = px.bar(origin_df, x="origin_port", y="total_orders",
+                    title="Orders by Origin Port",
+                    labels={"origin_port": "Origin Port", "total_orders": "Total Orders"},
+                    color="total_orders")
+st.plotly_chart(fig_origin, use_container_width=True)
 
 # Monthly Orders Trend
 st.subheader("Monthly Orders Trend")
 monthly_df = an.monthly_orders(df)
 st.dataframe(monthly_df)
 
-fig, ax = plt.subplots()
-ax.plot(monthly_df["month"], monthly_df["orders"], marker="o", color="green")
-ax.set_title("Monthly Orders Trend")
-ax.set_xlabel("Month")
-ax.set_ylabel("Orders")
-plt.xticks(rotation=45)
-st.pyplot(fig)
+fig_monthly = px.line(monthly_df, x="month", y="orders",
+                      title="Monthly Orders Trend",
+                      markers=True)
+st.plotly_chart(fig_monthly, use_container_width=True)
 
 # Service Level Distribution
 st.subheader("Service Level Distribution")
 svc_df = an.service_level_distribution(df)
 st.dataframe(svc_df)
 
-fig, ax = plt.subplots()
-ax.pie(svc_df["count"], labels=svc_df["service_level"], autopct="%1.1f%%")
-ax.set_title("Service Level Distribution")
-st.pyplot(fig)
+fig_service = px.pie(svc_df, values="count", names="service_level",
+                     title="Service Level Distribution")
+st.plotly_chart(fig_service, use_container_width=True)
 
 # Carrier Productivity
 st.subheader("Carrier Productivity")
 carrier_df = an.carrier_productivity(df)
 st.dataframe(carrier_df)
 
-fig, ax = plt.subplots()
-ax.bar(carrier_df["carrier"], carrier_df["shipments"], color="orange")
-ax.set_title("Carrier Productivity")
-ax.set_xlabel("Carrier")
-ax.set_ylabel("Shipments")
-plt.xticks(rotation=45)
-st.pyplot(fig)
+# ✅ Fix: use the correct column name from helper.py
+y_col = "shipments" if "shipments" in carrier_df.columns else "shipments_handled"
+
+fig_carrier = px.bar(carrier_df, x="carrier", y=y_col,
+                     title="Carrier Productivity",
+                     labels={"carrier": "Carrier", y_col: "Shipments"},
+                     color=y_col)
+st.plotly_chart(fig_carrier, use_container_width=True)
 
 # Churn Prediction
 st.subheader("Churn Prediction")
 churn_df = an.churn_prediction(df)
 st.dataframe(churn_df)
 
+fig_churn = px.histogram(churn_df, x="status", color="status",
+                         title="Customer Status Distribution")
+st.plotly_chart(fig_churn, use_container_width=True)
+
 # Data Quality Report
 st.subheader("Data Quality Report")
 dq_df = an.data_quality_report(df)
 st.dataframe(dq_df)
+
+fig_dq = px.bar(dq_df, x=dq_df.index, y="issue_count",
+                title="Data Quality Issues",
+                labels={"issue_count": "Issue Count"})
+st.plotly_chart(fig_dq, use_container_width=True)
