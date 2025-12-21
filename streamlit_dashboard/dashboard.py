@@ -11,7 +11,7 @@ import helper as an
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-DATA_FILE = os.path.join(DATA_DIR, "Supply chain logistics problem.xlsx")
+DATA_FILE = os.path.join(DATA_DIR, "logistics_data.xlsx")
 
 @st.cache_data
 def load_data():
