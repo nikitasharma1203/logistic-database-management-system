@@ -154,7 +154,7 @@ def data_quality_report(orders: pd.DataFrame) -> pd.DataFrame:
         "invalid_weight": (orders["weight"] <= 0).sum()
     }
     return pd.DataFrame.from_dict(issues, orient="index", columns=["issue_count"])
-import pandas as pd
+
 
 # -------------------------
 # KPI Metrics
@@ -167,27 +167,13 @@ def kpi_metrics(df):
         "Avg Weight": round(df["weight"].mean(), 2)
     }
 
-# -------------------------
-# Orders by Origin Port
-# -------------------------
-def orders_by_origin_port(df):
-    return (
-        df.groupby("origin_port")
-        .agg(
-            total_orders=("order_id", "count"),
-            avg_weight=("weight", "mean")
-        )
-        .reset_index()
-        .sort_values("total_orders", ascending=False)
-    )
 
 # -------------------------
 # Service Level Distribution
 # -------------------------
-
 def service_level_distribution(df):
-    svc = df.groupby("service_level").size().reset_index(name="count")
-    return svc
+    return df.groupby("service_level").size().reset_index(name="count")
+
 
 # -------------------------
 # Time Series Trend
@@ -196,20 +182,7 @@ def monthly_orders(df):
     df["month"] = df["order_date"].dt.to_period("M").astype(str)
     return df.groupby("month")["order_id"].count().reset_index(name="orders")
 
-# -------------------------
-# Carrier Productivity
-# -------------------------
-def carrier_productivity(df):
-    return (
-        df.groupby("carrier")
-        .agg(
-            shipments=("order_id", "count"),
-            avg_weight=("weight", "mean"),
-            avg_tpt=("tpt", "mean")
-        )
-        .reset_index()
-        .sort_values("shipments", ascending=False)
-    )
+
 def daily_orders(df):
     return (
         df.groupby(df["order_date"].dt.date)
