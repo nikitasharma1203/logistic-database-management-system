@@ -1,192 +1,143 @@
+# ==============================
+# 🚀 HELPER.PY (Analytics + ML Engine)
+# ==============================
+
 import pandas as pd
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
 
-# -------------------------------
-# 1. Orders by Origin Port
-# -------------------------------
-def orders_by_origin_port(orders: pd.DataFrame) -> pd.DataFrame:
-    df = (
-        orders
-        .groupby("origin_port")
-        .agg(
-            total_orders=("order_id", "count"),
-            avg_weight=("weight", "mean")
-        )
-        .reset_index()
-        .sort_values(by="total_orders", ascending=False)
-    )
-    df["avg_weight"] = df["avg_weight"].round(2)
-    return df
-
-
-# -------------------------------
-# 2. Domestic vs International
-# -------------------------------
-def geographic_distribution(orders: pd.DataFrame) -> pd.DataFrame:
-    orders = orders.copy()
-    orders["shipment_type"] = orders.apply(
-        lambda x: "Domestic"
-        if x["origin_port"] == x["destination_port"]
-        else "International",
-        axis=1
-    )
-
-    return (
-        orders
-        .groupby("shipment_type")
-        .agg(
-            total_orders=("order_id", "count"),
-            avg_weight=("weight", "mean")
-        )
-        .reset_index()
-    )
-
-
-# -------------------------------
-# 3. Failed Deliveries by Branch
-# -------------------------------
-def failed_deliveries_by_branch(orders: pd.DataFrame) -> pd.DataFrame:
-    return (
-        orders[orders["ship_late_day_count"] > 0]
-        .groupby("plant_code")
-        .size()
-        .reset_index(name="failed_orders")
-        .sort_values(by="failed_orders", ascending=False)
-    )
-
-
-# -------------------------------
-# 4. Shipment Weight Outliers
-# -------------------------------
-def shipment_weight_outliers(orders: pd.DataFrame) -> pd.DataFrame:
-    mean_wt = orders["weight"].mean()
-    std_wt = orders["weight"].std()
-    return orders[orders["weight"] > mean_wt + 2 * std_wt]
-
-
-# -------------------------------
-# 5. Customer Shipment Summary
-# -------------------------------
-def customer_summary(orders: pd.DataFrame) -> pd.DataFrame:
-    return (
-        orders
-        .groupby("customer")
-        .agg(
-            shipment_count=("order_id", "count"),
-            total_quantity=("unit_quantity", "sum"),
-            late_shipments=("ship_late_day_count", lambda x: (x > 0).sum())
-        )
-        .reset_index()
-    )
-
-
-# -------------------------------
-# 6. Customer Segmentation
-# -------------------------------
-def customer_segmentation(customer_df: pd.DataFrame) -> pd.DataFrame:
-    def segment(cnt):
-        if cnt > 100:
-            return "VIP"
-        elif cnt > 50:
-            return "Premium"
-        elif cnt > 10:
-            return "Regular"
-        else:
-            return "New"
-
-    customer_df = customer_df.copy()
-    customer_df["segment"] = customer_df["shipment_count"].apply(segment)
-    return customer_df
-
-
-# -------------------------------
-# 7. Churn Prediction
-# -------------------------------
-def churn_prediction(orders: pd.DataFrame) -> pd.DataFrame:
-    last_activity = (
-        orders
-        .groupby("customer")["order_date"]
-        .max()
-        .reset_index()
-    )
-
-    latest_date = orders["order_date"].max()
-    last_activity["days_inactive"] = (
-        latest_date - last_activity["order_date"]
-    ).dt.days
-
-    last_activity["status"] = last_activity["days_inactive"].apply(
-        lambda x: "Active" if x < 30 else "At Risk" if x < 90 else "Legacy"
-    )
-
-    return last_activity
-
-
-# -------------------------------
-# 8. Carrier Productivity
-# -------------------------------
-def carrier_productivity(orders: pd.DataFrame) -> pd.DataFrame:
-    df = (
-        orders
-        .groupby("carrier")
-        .agg(
-            shipments_handled=("order_id", "count"),
-            avg_weight=("weight", "mean"),
-            late_shipments=("ship_late_day_count", lambda x: (x > 0).sum())
-        )
-        .reset_index()
-    )
-
-    df["success_rate"] = (
-        1 - df["late_shipments"] / df["shipments_handled"]
-    )
-
-    return df.sort_values(by="success_rate", ascending=False)
-
-
-# -------------------------------
-# 9. Data Quality Checks
-# -------------------------------
-def data_quality_report(orders: pd.DataFrame) -> pd.DataFrame:
-    issues = {
-        "missing_origin_port": orders["origin_port"].isnull().sum(),
-        "missing_destination_port": orders["destination_port"].isnull().sum(),
-        "missing_customer": orders["customer"].isnull().sum(),
-        "invalid_weight": (orders["weight"] <= 0).sum()
-    }
-    return pd.DataFrame.from_dict(issues, orient="index", columns=["issue_count"])
-
-
-# -------------------------
-# KPI Metrics
-# -------------------------
+# -----------------------------
+# KPI METRICS
+# -----------------------------
 def kpi_metrics(df):
     return {
         "Total Orders": len(df),
-        "Total Customers": df["customer"].nunique(),
-        "Total Carriers": df["carrier"].nunique(),
-        "Avg Weight": round(df["weight"].mean(), 2)
+        "Total Customers": df["customer_id"].nunique() if "customer_id" in df else 0,
+        "Total Carriers": df["carrier"].nunique() if "carrier" in df else 0,
+        "Avg Weight": df["weight"].mean() if "weight" in df else 0
     }
 
+# -----------------------------
+# ORDERS BY ORIGIN PORT
+# -----------------------------
+def orders_by_origin_port(df):
+    return df.groupby("origin_port").size().reset_index(name="total_orders")
 
-# -------------------------
-# Service Level Distribution
-# -------------------------
-def service_level_distribution(df):
-    return df.groupby("service_level").size().reset_index(name="count")
-
-
-# -------------------------
-# Time Series Trend
-# -------------------------
+# -----------------------------
+# MONTHLY ORDERS
+# -----------------------------
 def monthly_orders(df):
+    df = df.copy()
+    df["order_date"] = pd.to_datetime(df["order_date"])
     df["month"] = df["order_date"].dt.to_period("M").astype(str)
-    return df.groupby("month")["order_id"].count().reset_index(name="orders")
+    return df.groupby("month").size().reset_index(name="orders")
 
-
-def daily_orders(df):
-    return (
-        df.groupby(df["order_date"].dt.date)
-        .size()
-        .reset_index(name="orders")
-        .rename(columns={"order_date": "date"})
+# -----------------------------
+# SERVICE LEVEL DISTRIBUTION
+# -----------------------------
+def service_level_distribution(df):
+    return df["service_level"].value_counts().reset_index().rename(
+        columns={"index": "service_level", "service_level": "count"}
     )
+
+# -----------------------------
+# CARRIER PRODUCTIVITY
+# -----------------------------
+def carrier_productivity(df):
+    return df.groupby("carrier").size().reset_index(name="shipments")
+
+# -----------------------------
+# DATA QUALITY REPORT
+# -----------------------------
+def data_quality_report(df):
+    report = {}
+    
+    report["missing_values"] = df.isnull().sum().sum()
+    report["duplicate_rows"] = df.duplicated().sum()
+    
+    if "weight" in df:
+        report["negative_weight"] = (df["weight"] < 0).sum()
+    
+    return pd.DataFrame.from_dict(report, orient="index", columns=["issue_count"])
+
+# =============================
+# 🔥 ML SECTION: CHURN PREDICTION
+# =============================
+def churn_prediction(df):
+    df = df.copy()
+
+    # Create synthetic churn label if not present
+    if "churn" not in df.columns:
+        df["churn"] = np.where(df["order_id"] % 5 == 0, 1, 0)
+
+    # Select features
+    features = ["service_level", "carrier"]
+    features = [f for f in features if f in df.columns]
+
+    if len(features) == 0:
+        return pd.DataFrame({"status": ["No features available"]})
+
+    X = df[features].copy()
+    y = df["churn"]
+
+    # Encode categorical
+    encoders = {}
+    for col in X.columns:
+        le = LabelEncoder()
+        X[col] = le.fit_transform(X[col].astype(str))
+        encoders[col] = le
+
+    # Train model
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+        model = LogisticRegression()
+        model.fit(X_train, y_train)
+
+        probs = model.predict_proba(X)[:, 1]
+
+        result = df[["customer_id"]].copy() if "customer_id" in df else pd.DataFrame()
+        result["churn_probability"] = probs
+        result["status"] = np.where(probs > 0.5, "Likely to Churn", "Safe")
+
+        return result
+
+    except Exception as e:
+        return pd.DataFrame({"status": [f"Model Error: {str(e)}"]})
+
+
+# =============================
+# 🔥 ADVANCED: DELAY ANALYSIS
+# =============================
+def delay_analysis(df):
+    if "delivery_time" not in df:
+        return pd.DataFrame()
+
+    avg_time = df["delivery_time"].mean()
+    delayed = df[df["delivery_time"] > avg_time]
+
+    return delayed.groupby("origin_port").size().reset_index(name="delays")
+
+
+# =============================
+# 🔥 CUSTOMER SEGMENTATION
+# =============================
+def customer_segmentation(df):
+    if "customer_id" not in df:
+        return pd.DataFrame()
+
+    freq = df.groupby("customer_id").size().reset_index(name="orders")
+
+    conditions = [
+        freq["orders"] > 20,
+        freq["orders"].between(10, 20),
+        freq["orders"] < 10
+    ]
+
+    choices = ["High Value", "Medium Value", "Low Value"]
+
+    freq["segment"] = np.select(conditions, choices, default="Low Value")
+
+    return freq
